@@ -1,0 +1,40 @@
+# ATS watchlist: one "ats:company-slug" per line (slug from careers URL).
+# boards.greenhouse.io/<slug>, jobs.lever.co/<slug>, jobs.ashbyhq.com/<slug>
+# Tip: job-radar's `discover <company>` resolves and verifies slugs for you.
+# A bad slug is harmless — fetch_watchlist logs the error and keeps going.
+
+# --- Greenhouse (verified 2026-07-24) ---
+greenhouse:gitlab
+greenhouse:grafanalabs
+greenhouse:clickhouse
+greenhouse:tailscale
+greenhouse:chainguard
+greenhouse:temporaltechnologies
+greenhouse:sourcegraph91
+greenhouse:remotecom
+greenhouse:vercel
+
+# --- Ashby (verified 2026-09-05: board responds with live postings) ---
+ashby:supabase
+ashby:openai
+ashby:langchain        # LangGraph/LangChain — closest match to your stack
+ashby:baseten          # inference infra, remote-US roles present
+ashby:deepgram         # voice AI, all postings remote-US
+
+# --- Checked and deliberately excluded (2026-09-05) ---
+# ashby:modal          board is valid but every role is in-office (NY/SF/Stockholm/London)
+# ashby:replit         board is valid but all roles are Foster City hybrid
+# ashby:assemblyai     slug returns 404 — find the real one from their careers URL
+
+# --- Unverified: uncomment after confirming the slug resolves ---
+# Check by loading the board URL in a browser, or run:
+#   python main.py discover      (a bad slug just prints one [discover] warning)
+# Lever boards — you currently have zero Lever coverage:
+# lever:plaid
+# lever:matillion
+# Greenhouse — AI/data companies matching your Snowflake + Bedrock background:
+# greenhouse:snowflake
+# greenhouse:databricks
+# greenhouse:anthropic
+# greenhouse:mongodb
+# greenhouse:weightsandbiases

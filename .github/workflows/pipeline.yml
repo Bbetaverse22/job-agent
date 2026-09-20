@@ -1,0 +1,37 @@
+name: job-pipeline
+# Scheduled runs are disabled. An unset GitHub secret expands to "" in env,
+# which used to crash int() parsing in src/config.py at startup (now guarded
+# with `or`). Checkpoints are also ephemeral on Actions runners, so a run that
+# pauses at the approval gate here cannot be resumed from Telegram. Running
+# locally is the supported path. To enable scheduling, add the secrets below,
+# persist the checkpoint DB, then restore:
+#   schedule:
+#     - cron: "0 13 * * 1-5"
+on:
+  workflow_dispatch: {}
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      - run: python main.py run
+        env:
+          LLM_PROVIDER: anthropic
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SALARY_FLOOR_USD: ${{ secrets.SALARY_FLOOR_USD }}
+          HOME_METRO: ${{ secrets.HOME_METRO }}
+          RESUME_MUST_KEEP: ${{ secrets.RESUME_MUST_KEEP }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          JSEARCH_API_KEY: ${{ secrets.JSEARCH_API_KEY }}
+          LANGSMITH_TRACING: "true"
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_PROJECT: job-agent
+      # Checkpoint DBs are ephemeral on Actions runners: persist them
+      # (cache/artifact/S3) or run on an always-on box, or the Telegram
+      # approval cannot resume the same checkpoint.
+      # Runners also share IPs, so job boards throttle them sooner than a
+      # laptop would be throttled. Prefer local runs if sources look empty.

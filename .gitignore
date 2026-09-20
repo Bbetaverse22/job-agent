@@ -1,0 +1,12 @@
+# Secrets & personal data — never commit
+.env
+profile/*.md
+!profile/*.example.md
+out/
+*.db
+__pycache__/
+*.pyc
+*.db-shm
+*.db-wal
+gmail-sync-*.csv
+.obsidian/

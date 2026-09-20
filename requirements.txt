@@ -1,0 +1,7 @@
+python-dotenv
+langgraph>=0.4
+langgraph-checkpoint-sqlite
+langchain-core
+langchain-aws
+langchain-anthropic
+pydantic>=2
