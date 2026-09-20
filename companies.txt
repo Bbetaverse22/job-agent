@@ -1,9 +1,17 @@
-# ATS watchlist: one "ats:company-slug" per line (slug from careers URL).
-# boards.greenhouse.io/<slug>, jobs.lever.co/<slug>, jobs.ashbyhq.com/<slug>
-# Tip: job-radar's `discover <company>` resolves and verifies slugs for you.
-# A bad slug is harmless — fetch_watchlist logs the error and keeps going.
+# ATS watchlist. One "ats:company-slug" per line.
+#
+# The slug is the last path segment of the company's public board URL:
+#   boards.greenhouse.io/<slug>   jobs.lever.co/<slug>   jobs.ashbyhq.com/<slug>
+#
+# Replace this list with the companies you actually want to track. What ships
+# here is a starting set of remote-friendly engineering boards, not a
+# recommendation. Verify a slug by loading its board URL, or just add it and run
+# `python main.py discover`: a bad slug prints one warning and the run continues.
+#
+# Only postings matching the discover keywords are kept, so a large board costs
+# little. See --keywords in the README to widen or narrow that filter.
 
-# --- Greenhouse (verified 2026-07-24) ---
+# --- Greenhouse ---
 greenhouse:gitlab
 greenhouse:grafanalabs
 greenhouse:clickhouse
@@ -14,27 +22,18 @@ greenhouse:sourcegraph91
 greenhouse:remotecom
 greenhouse:vercel
 
-# --- Ashby (verified 2026-09-05: board responds with live postings) ---
+# --- Ashby ---
 ashby:supabase
 ashby:openai
-ashby:langchain        # LangGraph/LangChain — closest match to your stack
-ashby:baseten          # inference infra, remote-US roles present
-ashby:deepgram         # voice AI, all postings remote-US
+ashby:langchain
+ashby:baseten
+ashby:deepgram
 
-# --- Checked and deliberately excluded (2026-09-05) ---
-# ashby:modal          board is valid but every role is in-office (NY/SF/Stockholm/London)
-# ashby:replit         board is valid but all roles are Foster City hybrid
-# ashby:assemblyai     slug returns 404 — find the real one from their careers URL
+# --- Lever ---
+# No Lever boards in the default set. Add your own here:
+# lever:<slug>
 
-# --- Unverified: uncomment after confirming the slug resolves ---
-# Check by loading the board URL in a browser, or run:
-#   python main.py discover      (a bad slug just prints one [discover] warning)
-# Lever boards — you currently have zero Lever coverage:
-# lever:plaid
-# lever:matillion
-# Greenhouse — AI/data companies matching your Snowflake + Bedrock background:
-# greenhouse:snowflake
-# greenhouse:databricks
-# greenhouse:anthropic
-# greenhouse:mongodb
-# greenhouse:weightsandbiases
+# Boards worth knowing about, but excluded because their listings were onsite
+# or hybrid only when this list was last checked. Uncomment if that changes:
+# ashby:modal            in-office (NY / SF / Stockholm / London)
+# ashby:replit           Foster City hybrid
