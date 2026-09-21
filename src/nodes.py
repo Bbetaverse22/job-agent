@@ -460,7 +460,12 @@ def score(state: PipelineState):
                         f"\nSalary floor USD: {config.SALARY_FLOOR or 'see profile'}. "
                         "Hard constraints: fully remote (US)" + (f" or {config.HOME_METRO.title()}" if config.HOME_METRO else "") + "; no relocation "
                         "ever; a STATED salary ceiling below the floor fails. An unstated "
-                        "salary is NOT a failure — score normally and note it.")),
+                        "salary is NOT a failure; score normally and note it. These are the "
+                        "ONLY hard constraints. Never set hard_fail for a missing skill (even "
+                        "one the posting calls a must-have), for years of experience, for "
+                        "seniority level, or for occasional travel: lower stack_overlap or "
+                        "seniority_fit instead. A strong candidate missing one listed "
+                        "language is still a candidate.")),
                     HumanMessage(content=f"Score this posting:\n\nTITLE: {item.posting.title}\n"
                                  f"COMPANY: {item.posting.company}\nLOCATION: {item.posting.location}\n"
                                  f"SALARY: {item.posting.salary_text or '(not stated)'}\n\n"

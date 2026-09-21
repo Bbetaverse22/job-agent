@@ -26,7 +26,12 @@ class SearchPlan(BaseModel):
 
 class FitScore(BaseModel):
     """Structured output from the scoring agent."""
-    hard_fail: bool = Field(description="True if any hard constraint fails (not fully remote and not in the candidate's commutable metro, requires relocation, stated salary ceiling below floor)")
+    hard_fail: bool = Field(description=(
+        "True ONLY if a hard constraint fails: not fully remote and not in the candidate's "
+        "commutable metro, requires relocation, a STATED salary ceiling below the floor, or "
+        "work authorization. Nothing else is a hard fail. A missing skill or language (even "
+        "a stated must-have), years of experience, seniority level, and occasional travel "
+        "are NEVER hard fails; lower stack_overlap or seniority_fit instead."))
     hard_fail_reason: str = ""
     stack_overlap: int = Field(ge=0, le=30, description="Exact technology matches between the candidate profile and the posting. Count only tools named in both; near-misses and adjacent ecosystems do not count")
     ai_mandate: int = Field(ge=0, le=25, description="25=building LLM/agentic systems IS the job; 10=AI-adjacent; 0=no AI mandate")
