@@ -592,6 +592,16 @@ def tailor(state: PipelineState):
                 "Never include former employers' internal project names. Cover letter "
                 "≤250 words, three paragraphs, no filler words (passionate, leverage, "
                 "utilize).\n\n"
+                "COVER LETTER CONTENT: argue for the candidate from what she HAS done. "
+                "Never list skills, languages, domains, or tools she lacks, and never write "
+                "sentences like 'my experience does not include X'. At most one short, "
+                "positive sentence may acknowledge a gap by pairing it with the closest "
+                "transferable experience. Attribute every metric to the exact work that "
+                "produced it in the base resume; never credit one result to several "
+                "projects. Open with 'Dear Hiring Team,' and close with 'Best regards,' "
+                "and the candidate's full name on its own line. No dashes of any kind "
+                "(em, en, or spaced hyphens) in the letter; use commas or separate "
+                "sentences.\n\n"
                 + UNTRUSTED_NOTICE +
                 "\n\nCandidate profile, base resume, and verified stories:\n" + profile)),
             HumanMessage(content=(
