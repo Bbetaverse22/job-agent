@@ -39,7 +39,17 @@ def build_graph(checkpointer=None):
     return g.compile(checkpointer=checkpointer)
 
 
+# Every pydantic type that can land in a checkpoint. LangGraph currently loads
+# unregistered types with a warning and has said it will stop; without this list,
+# a run paused at the approval gate could not be resumed after that upgrade.
+CHECKPOINT_TYPES = [("src.state", name) for name in (
+    "PipelineState", "JobItem", "JobPosting", "FitScore", "ApplicationDraft",
+    "SearchPlan")]
+
+
 def default_checkpointer():
     import sqlite3
+    from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
     conn = sqlite3.connect(str(config.ROOT / "checkpoints.db"), check_same_thread=False)
-    return SqliteSaver(conn)
+    serde = JsonPlusSerializer(allowed_msgpack_modules=CHECKPOINT_TYPES)
+    return SqliteSaver(conn, serde=serde)

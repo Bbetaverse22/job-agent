@@ -15,9 +15,13 @@ def run():
     thread = uuid.uuid4().hex[:8]
     graph = build_graph(checkpointer=default_checkpointer())
     cfg = {"configurable": {"thread_id": thread}}
+    printed = 0
     for step in graph.stream(PipelineState(), cfg, stream_mode="values"):
-        for line in step.get("log", [])[-3:]:
+        # Each step yields the whole accumulated log; print only what is new.
+        log = step.get("log", [])
+        for line in log[printed:]:
             print(line)
+        printed = len(log)
     snap = graph.get_state(cfg)
     if any(t.interrupts for t in snap.tasks):
         print(f"\nPaused for approval. thread_id={thread}")

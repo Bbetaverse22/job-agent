@@ -132,6 +132,21 @@ def parse_salary_max(text: str) -> float | None:
     return mx
 
 
+def _fatal_provider_error(e: Exception) -> bool:
+    """True for errors no retry will fix during this run: no credits, a bad key,
+    no model access. On these the run stops calling the model at the first
+    failure instead of making every capped call fail the same way, and says so
+    plainly rather than ending with "nothing reached the approval gate", which
+    reads like there were no good jobs."""
+    name = type(e).__name__.lower()
+    text = str(e).lower()
+    return (name in ("authenticationerror", "permissiondeniederror")
+            or any(marker in text for marker in (
+                "insufficient_quota", "credit_balance", "credit balance",
+                "invalid_api_key", "invalid x-api-key", "incorrect api key",
+                "accessdenied", "unrecognizedclient", "security token")))
+
+
 def _hard_filter(item: JobItem) -> str | None:
     """Deterministic pre-filter. Returns rejection reason or None.
 
@@ -401,8 +416,13 @@ def score(state: PipelineState):
                                  + fence(item.posting.description[:12000]))])
             except Exception as e:  # noqa: BLE001 — one bad score shouldn't kill the run
                 # Leave status='discovered' so the next run retries this posting.
+                if _fatal_provider_error(e):
+                    log.append("score: STOPPED. The model provider refused the call and "
+                               "retrying will not help this run. Postings stay queued "
+                               f"for the next run. Provider said: {str(e)[:200]}")
+                    break
                 log.append(f"score: skipped {item.posting.company} — "
-                           f"{item.posting.title}: {type(e).__name__}")
+                           f"{item.posting.title}: {type(e).__name__}: {str(e)[:120]}")
                 continue
             _audit_grounding(item, profile)
         item.status = "evaluated"
@@ -483,7 +503,8 @@ def tailor(state: PipelineState):
                 "being written from profile text alone and the anti-lossiness guard "
                 "is inactive. Fix: cp profile/00-base-resume.example.md "
                 "profile/00-base-resume.md and paste in your resume.")
-        draft = llm.invoke([
+        try:
+            draft = llm.invoke([
             SystemMessage(content=(
                 "You tailor job application materials.\n\n"
                 "THE RESUME IS AN EDIT, NOT A REWRITE. profile/00-base-resume.md is the "
@@ -512,6 +533,29 @@ def tailor(state: PipelineState):
                 "Output exactly two sections:\n## RESUME\n(the FULL base resume with only "
                 "the summary reworded and items reordered — every role and bullet still "
                 "present)\n## COVER LETTER\n(the letter)"))])
+        except Exception as e:  # noqa: BLE001 — one failed draft shouldn't kill the run
+            # Scoring already marked this posting 'evaluated', which the next run's
+            # dedupe treats as seen, so a failed draft would never be retried. Put
+            # it back to 'discovered' so the next run picks it up again.
+            item.status = "discovered"
+            _upsert(item)
+            if _fatal_provider_error(e):
+                # Every other posting that scored well but has no draft yet is in
+                # the same position, so re-queue all of them, not just this one.
+                requeued = 0
+                for other in state.jobs:
+                    if (other.draft is None and other.status == "evaluated" and other.score
+                            and other.score.verdict in ("APPLY", "APPLY_IF_CAPACITY")):
+                        other.status = "discovered"
+                        _upsert(other)
+                        requeued += 1
+                log.append("tailor: STOPPED. The model provider refused the call; "
+                           f"{requeued + 1} posting(s) re-queued for the next run. "
+                           f"Provider said: {str(e)[:200]}")
+                break
+            log.append(f"tailor: skipped {item.posting.company} — "
+                       f"{item.posting.title}: {type(e).__name__}: {str(e)[:120]}")
+            continue
         text = draft.content if isinstance(draft.content, str) else str(draft.content)
         parts = re.split(r"^## COVER LETTER\s*$", text, flags=re.M)
         resume_md = parts[0].replace("## RESUME", "").strip()
