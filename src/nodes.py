@@ -338,19 +338,51 @@ def _resume_too_lossy(tailored: str) -> bool:
     return any(marker not in tailored for marker in config.RESUME_MUST_KEEP)
 
 
+# Distinct AI-engineering concepts, each counted at most once per posting. Used
+# to rank postings within a priority tier, so a capped run spends its scoring
+# budget on the likeliest matches rather than on whatever sorts first
+# alphabetically. Provider and company names are left out on purpose: every
+# OpenAI posting says "OpenAI", which says nothing about the role.
+AI_RELEVANCE_TERMS = [re.compile(p) for p in (
+    r"\bllms?\b|\blarge language models?\b",
+    r"\bagent(s|ic)?\b|\bmulti-agent\b",
+    r"\brag\b|\bretrieval[- ]augmented\b",
+    r"\bevals?\b|\bevaluations?\b",
+    r"\blanggraph\b",
+    r"\blangchain\b",
+    r"\blangsmith\b",
+    r"\bprompts?\b|\bprompt engineering\b",
+    r"\bembeddings?\b",
+    r"\bvector (database|search|store|db)s?\b",
+    r"\binference\b",
+    r"\bfine-?tun(e|ed|ing)\b",
+    r"\bgen ?ai\b|\bgenerative ai\b",
+    r"\bmcp\b|\bmodel context protocol\b",
+    r"\bguardrails?\b",
+    r"\btool (use|calling)\b|\bfunction calling\b",
+    r"\bbedrock\b",
+)]
+
+
+def _ai_relevance(item: JobItem) -> int:
+    """How much of the posting is about AI engineering. Title hits count three
+    times a description hit. Greenhouse descriptions arrive HTML-escaped, so
+    they are unescaped and stripped of tags first."""
+    import html
+    title = item.posting.title.lower()
+    body = re.sub(r"<[^>]+>", " ", html.unescape(item.posting.description[:8000])).lower()
+    return sum(3 * bool(t.search(title)) + bool(t.search(body)) for t in AI_RELEVANCE_TERMS)
+
+
 def _scoring_priority(item: JobItem) -> tuple:
     """Order jobs so the LLM budget is spent on the most plausible roles first.
-    Returns a sort key (lower = scored earlier)."""
+    Returns a sort key (lower = scored earlier): the title tier, then AI
+    relevance within the tier, then title only as a final tie-break."""
     title = item.posting.title.lower()
     ai = bool(re.search(r"\b(ai|ml|llm|machine learning|agent\w*|genai)\b", title))
     eng = bool(re.search(r"\b(engineer|developer|software|programmer)\b", title))
-    if ai and eng:
-        return (0, title)      # "AI Engineer" — exactly the target
-    if ai:
-        return (1, title)      # AI-focused, non-engineer title
-    if eng:
-        return (2, title)      # engineering, no AI signal
-    return (3, title)          # everything else
+    tier = 0 if ai and eng else 1 if ai else 2 if eng else 3
+    return (tier, -_ai_relevance(item), title)
 
 
 # ---------- nodes ----------
@@ -456,8 +488,13 @@ def score(state: PipelineState):
         updated.append(item)
         _upsert(item)
         note = f" [{item.notes}]" if item.notes else ""
+        why = ""
+        if item.score.hard_fail:
+            # Say which constraint failed. A hard fail forces REJECT whatever the
+            # total, so without the reason a "REJECT (54)" is unexplainable.
+            why = f" (hard fail: {item.score.hard_fail_reason or 'the model gave no reason'})"
         log.append(f"score: {item.posting.company} — {item.posting.title} → "
-                   f"{item.score.verdict} ({item.score.total}){note}")
+                   f"{item.score.verdict} ({item.score.total}){why}{note}")
     if deferred:
         log.append(f"score: cap of {config.MAX_LLM_SCORES} LLM calls reached — "
                    f"{deferred} job(s) deferred (raise MAX_LLM_SCORES_PER_RUN to score more)")
