@@ -28,11 +28,13 @@ prohibit automation.
 
 **score** runs a deterministic filter first, so no posting earns a paid model call
 until it has passed remote/location rules (including rejecting postings that are
-remote for another country), title checks, and the salary rule. The title check is
-two lists: engineer-titled roles that are really presales, support, or advocacy
-are always dropped, while non-engineering families such as design or marketing
-are only dropped when the title names no engineering work at all, so "Software
-Engineer, AI Enablement" is never mistaken for Sales Enablement. What survives goes to a structured-output rubric. `matched_skills` is
+remote for another country), title checks, and the salary rule. A title has to
+name engineering work (engineer, developer, software, architect, technical staff,
+and a few more) to pass at all, and engineer-titled roles that are really presales,
+support, customer success, or advocacy are then dropped. An allowlist replaced an
+earlier blocklist of non-engineering families, which rejected "Software Engineer,
+AI Enablement" for the word "enablement" while letting "Mobility Specialist" through
+because nobody had listed it. What survives goes to a structured-output rubric. `matched_skills` is
 then audited in code: any skill the model claimed that does not literally appear in
 both your profile and the job text is dropped, and the drop is recorded in the
 rationale. Scoring is capped at `MAX_LLM_SCORES_PER_RUN`; the overflow is deferred
@@ -83,7 +85,9 @@ cp .env.example .env                                              # then fill it
 for f in profile/*.example.md; do cp "$f" "${f%.example.md}.md"; done
 ```
 
-Complete the `[FILL]`s in `profile/*.md` and put real board slugs in `companies.txt`.
+Complete the `[FILL]`s in `profile/*.md`. For your own watchlist, copy
+`companies.txt` to `companies.local.txt` and edit that: it is gitignored, and when it
+exists it is used instead of `companies.txt`.
 
 `profile/00-base-resume.md` is the one that matters most. It is the resume the
 pipeline ships, and the lossiness check falls back to it. Without it the run still

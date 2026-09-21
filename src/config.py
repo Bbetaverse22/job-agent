@@ -9,10 +9,19 @@ no code changes needed (their "one line" beat, except here it's zero lines):
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
-load_dotenv(ROOT / ".env")
+ENV_FILE = ROOT / ".env"
+load_dotenv(ENV_FILE)
+# python-dotenv reads `KEY=   # a comment` as the value "# a comment" when nothing
+# comes before the comment. That turned blank settings into garbage: MODEL_ID
+# became a model name OpenAI rejects, and JSEARCH_API_KEY was sent as a key.
+# Treat any value from .env that starts with "#" as unset, both for our settings
+# and for the SDKs that read their keys straight from the environment.
+for _key, _value in dotenv_values(ENV_FILE).items():
+    if _value is not None and _value.strip().startswith("#"):
+        os.environ.pop(_key, None)
 PROFILE_DIR = ROOT / "profile"
 DB_PATH = ROOT / "pipeline.db"
 
@@ -23,7 +32,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 # `or` guards against CI passing empty strings (an unset GitHub secret expands
 # to "" which beats the getenv default and crashes int("")).
 SALARY_FLOOR = int(os.getenv("SALARY_FLOOR_USD") or "0")
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "bedrock")  # bedrock | anthropic
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "bedrock")  # bedrock | anthropic | openai
 MODEL_ID = os.getenv("MODEL_ID", "")
 
 # Aggregator sources (all optional — cascade degrades gracefully)

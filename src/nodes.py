@@ -21,7 +21,11 @@ from . import config
 from .sources import fetch_watchlist, fetch_cascade
 from .jobradar_source import fetch_jobradar
 
-COMPANIES_FILE = config.ROOT / "companies.txt"
+# companies.local.txt, if present, replaces companies.txt. It is gitignored, so a
+# personal watchlist never has to be committed to a public repo.
+_LOCAL_COMPANIES = config.ROOT / "companies.local.txt"
+COMPANIES_FILE = (_LOCAL_COMPANIES if _LOCAL_COMPANIES.exists()
+                  else config.ROOT / "companies.txt")
 
 FALLBACK_PLAN = SearchPlan(
     query="AI engineer LLM LangGraph remote",
@@ -155,10 +159,10 @@ def _hard_filter(item: JobItem) -> str | None:
     if re.search(r"\b(hybrid|on-?site|in.office)\b", loc) and not at_home_metro:
         return f"hybrid/onsite{' outside ' + metro.title() if metro else ''}"
     title = item.posting.title.lower()
-    if NON_SOFTWARE_ENGINEER_TITLE.search(title):
-        return "presales / support / advocacy role"
-    if not ENGINEERING_NOUN.search(title) and NON_ENGINEERING_TITLE.search(title):
+    if not ENGINEERING_TITLE.search(title):
         return "non-engineering role"
+    if NON_SOFTWARE_ENGINEER_TITLE.search(title):
+        return "presales / support / success / advocacy role"
     excluded = _excluded_title_term(title)
     if excluded:
         return f"excluded title term '{excluded}'"
@@ -171,49 +175,87 @@ def _hard_filter(item: JobItem) -> str | None:
     return None
 
 
-# Title filtering is two lists, because one list cannot tell "Sales Enablement"
-# from "Software Engineer, AI Enablement". Both are matched against the TITLE only:
-# a description mentioning sales is fine, a title of "Account Executive" is not.
-# Anything ambiguous is left for the scorer, which is capped and prioritized.
+# Title filtering, matched against the TITLE only: a description mentioning sales
+# is fine, a title of "Account Executive" is not.
+#
+# The first version listed non-engineering families (sales, marketing, ...) and
+# rejected any title containing one. That failed in both directions on the first
+# live run: "Software Engineer, AI Enablement" was rejected for "enablement", while
+# "Mobility Specialist", "Power Trading Lead", and "Energy Regulatory Lead" passed
+# because nobody had thought to list them. An allowlist does not have that problem:
+# a title has to name engineering work, whatever else it says.
 
-# A title naming engineering work. When present, NON_ENGINEERING_TITLE is not
-# consulted at all, so "AI Enablement Engineer" and "Growth Marketing Engineer"
-# reach the scorer instead of being dropped on a stray word.
-ENGINEERING_NOUN = re.compile(
-    r"\b(engineer\w*|developer|software|programmer|architect|sre|swe"
-    r"|technical staff)\b")
+# A title naming engineering work. "engineers?" deliberately does not match
+# "engineering", so "Technical Program Manager (Engineering)" and "Manager, Support
+# Engineering" are not mistaken for engineering roles; "engineering manager" is
+# listed explicitly so managers who want to use this still can (an IC can drop
+# them with EXCLUDE_TITLE_TERMS=manager).
+ENGINEERING_TITLE = re.compile(
+    r"\b(engineers?|developers?|software|programmers?|architects?|sre|swe|devops"
+    r"|technical staff|tech lead|engineering manager)\b")
 
-# Job families that are never software engineering. Only applied to titles with
-# no engineering noun.
-NON_ENGINEERING_TITLE = re.compile(
-    r"\b(account (executive|director|manager)|customer success|business development"
-    r"|sales|demand gen\w*|marketing|brand|designer|ux researcher|recruit\w*|talent"
-    r"|people (operations|partner)|hris?|payroll|accountant|controller|fp&a|finance"
-    r"|legal|counsel|paralegal|procurement|audit|compensation|office manager"
-    r"|executive assistant|community manager|content|copywriter|social media"
-    r"|public relations|communications|events|(product|program|project) manager"
-    r"|analyst|partner(ship)? (manager|development)|general application|intern(ship)?"
-    r"|patient care|nurse|teacher)\b")
-
-# Titles that say "engineer" but are presales, support, or advocacy, not building
-# software. Always applied.
+# Titles that name engineering but are presales, support, success, or advocacy,
+# not building software.
 NON_SOFTWARE_ENGINEER_TITLE = re.compile(
-    r"\b(solutions? (engineer|architect)|sales engineer|pre-?sales|customer engineer"
-    r"|support engineer|customer reliability|field engineer|implementation engineer"
-    r"|professional services|developer (relations|success|advoca\w*)|devrel)\b")
+    r"\b(solutions? (engineer\w*|architect\w*)|sales engineer\w*|pre-?sales"
+    r"|customer engineer\w*|support engineer\w*|customer reliability"
+    r"|(customer|partner) success|field engineer\w*|implementation engineer\w*"
+    r"|professional services|developer (relations|success|advoca\w*)|devrel"
+    r"|land develop\w*|real estate)\b")
 
-# Location strings that name a non-US country or region. A "remote" posting whose
-# location names one of these and no US marker is remote for somewhere else.
+# A "remote" posting whose location names somewhere outside the US, and does not
+# also name the US, is remote for somewhere else. Georgia and Jersey are left out
+# because they are also US places, and "new mexico" is excluded from "mexico".
 NON_US_LOCATION = re.compile(
-    r"\b(canada|toronto|montreal|vancouver|united kingdom|uk|england|london|ireland"
-    r"|dublin|germany|berlin|munich|france|paris|netherlands|amsterdam|poland"
-    r"|warsaw|spain|madrid|barcelona|portugal|lisbon|italy|sweden|stockholm|denmark"
-    r"|norway|finland|switzerland|zurich|austria|belgium|czech\w*|romania|ukraine"
-    r"|israel|tel aviv|india|bangalore|bengaluru|hyderabad|pune|singapore|japan"
-    r"|tokyo|korea|china|australia|sydney|melbourne|new zealand|brazil|mexico"
-    r"|argentina|colombia|latam|emea|apac|europe|eu)\b")
+    r"\b("
+    # regions
+    r"emea|apac|latam|eu|europe|european union|asia|africa|oceania|middle east"
+    r"|nordics?|dach|benelux|baltics?|balkans|cee|anz|mena|gcc|southeast asia"
+    r"|south asia|central america|south america|caribbean"
+    # Canada, including provinces and cities
+    r"|canada|ontario|quebec|british columbia|alberta|manitoba|saskatchewan"
+    r"|nova scotia|toronto|montreal|vancouver|ottawa|calgary|waterloo"
+    # Europe
+    r"|united kingdom|uk|england|scotland|wales|northern ireland|ireland|london"
+    r"|manchester|edinburgh|dublin|germany|berlin|munich|hamburg|france|paris|lyon"
+    r"|netherlands|amsterdam|belgium|brussels|luxembourg|switzerland|zurich|geneva"
+    r"|austria|vienna|spain|madrid|barcelona|portugal|lisbon|porto|italy|milan|rome"
+    r"|greece|athens|malta|cyprus|sweden|stockholm|norway|oslo|denmark|copenhagen"
+    r"|finland|helsinki|iceland|poland|warsaw|krakow|czech\w*|prague|slovakia"
+    r"|hungary|budapest|romania|bucharest|bulgaria|sofia|serbia|belgrade|croatia"
+    r"|zagreb|slovenia|bosnia|montenegro|albania|north macedonia|estonia|tallinn"
+    r"|latvia|riga|lithuania|vilnius|ukraine|kyiv|moldova|belarus|russia|moscow"
+    r"|turkey|t[uü]rkiye|istanbul|ankara"
+    # Middle East and Africa
+    r"|israel|tel aviv|jordan|lebanon|egypt|cairo|saudi arabia|riyadh"
+    r"|united arab emirates|uae|dubai|abu dhabi|qatar|doha|kuwait|bahrain|oman"
+    r"|morocco|tunisia|algeria|nigeria|lagos|ghana|kenya|nairobi|ethiopia|rwanda"
+    r"|uganda|tanzania|south africa|cape town|johannesburg"
+    # Asia and Pacific
+    r"|india|bangalore|bengaluru|hyderabad|pune|mumbai|delhi|chennai|gurgaon"
+    r"|gurugram|noida|pakistan|karachi|lahore|bangladesh|dhaka|sri lanka|nepal"
+    r"|china|beijing|shanghai|shenzhen|hong kong|taiwan|taipei|japan|tokyo|osaka"
+    r"|korea|south korea|seoul|singapore|malaysia|kuala lumpur|indonesia|jakarta"
+    r"|philippines|manila|vietnam|hanoi|ho chi minh|thailand|bangkok|cambodia"
+    r"|australia|sydney|melbourne|brisbane|perth|new zealand|auckland"
+    # Latin America
+    r"|(?<!new )mexico|mexico city|guadalajara|brazil|s[aã]o paulo|rio de janeiro"
+    r"|argentina|buenos aires|chile|santiago|colombia|bogot[aá]|medell[ií]n|peru"
+    r"|lima|uruguay|montevideo|paraguay|bolivia|ecuador|venezuela|costa rica"
+    r"|panama|guatemala|honduras|el salvador|nicaragua|dominican republic|cuba"
+    r")\b")
+
+# Anything that says the US is an option. State names are included so that
+# "Remote, Canada; Remote, New York" is recognized as open to the US.
 US_LOCATION = re.compile(
-    r"\b(us|usa|u\.s\.?|united states|america|americas|amer|north america|anywhere)\b")
+    r"\b(us|usa|u\.s\.?|united states|america|americas|amer|noram|north america"
+    r"|anywhere|alabama|alaska|arizona|arkansas|california|colorado|connecticut"
+    r"|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky"
+    r"|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi"
+    r"|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico"
+    r"|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania"
+    r"|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont"
+    r"|virginia|washington|west virginia|wisconsin|wyoming|puerto rico)\b")
 
 
 def _excluded_title_term(title: str) -> str | None:

@@ -42,6 +42,7 @@ def discover_only(query="", keywords="", show_rejected=False):
     if keywords:
         state.keywords = [k.strip().lower() for k in keywords.split(",") if k.strip()]
 
+    print(f"watchlist: {nodes.COMPANIES_FILE.name}")
     print(f"query:    '{plan.query}'")
     print(f"keywords: {state.keywords or '(none — watchlist unfiltered)'}\n")
 

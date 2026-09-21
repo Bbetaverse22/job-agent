@@ -10,3 +10,4 @@ __pycache__/
 *.db-wal
 gmail-sync-*.csv
 .obsidian/
+companies.local.txt

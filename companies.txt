@@ -10,14 +10,15 @@
 #
 # Only postings matching the discover keywords are kept, so a large board costs
 # little. See --keywords in the README to widen or narrow that filter.
+#
+# For your own list, copy this file to companies.local.txt and edit that. It is
+# gitignored and, when present, is used instead of this file.
 
 # --- Greenhouse ---
 greenhouse:gitlab
 greenhouse:grafanalabs
-greenhouse:clickhouse
 greenhouse:tailscale
 greenhouse:chainguard
-greenhouse:temporaltechnologies
 greenhouse:sourcegraph91
 greenhouse:remotecom
 greenhouse:vercel
@@ -28,6 +29,8 @@ ashby:openai
 ashby:langchain
 ashby:baseten
 ashby:deepgram
+ashby:clickhouse
+ashby:temporal
 
 # --- Lever ---
 # No Lever boards in the default set. Add your own here:
