@@ -34,6 +34,8 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 SALARY_FLOOR = int(os.getenv("SALARY_FLOOR_USD") or "0")
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "bedrock")  # bedrock | anthropic | openai
 MODEL_ID = os.getenv("MODEL_ID", "")
+# OpenAI reasoning effort: none | low | medium | high. Blank uses the model default.
+OPENAI_REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "").strip().lower()
 
 # Aggregator sources (all optional — cascade degrades gracefully)
 JSEARCH_API_KEY = os.getenv("JSEARCH_API_KEY", "")
@@ -99,10 +101,13 @@ def get_llm(temperature: float = 0.2):
         return ChatAnthropic(model=MODEL_ID or "claude-sonnet-4-6", temperature=temperature,
                              max_tokens=4096)
     if LLM_PROVIDER == "openai":
-        # No temperature: GPT-5-family reasoning models reject anything but the
-        # default, and the pipeline's tuning (0.2 to 0.5) is not worth a 400.
+        # The Responses API, not Chat Completions: GPT-5.6 models refuse function
+        # tools with reasoning on /v1/chat/completions, and structured output is
+        # a function tool, so every scoring call failed with a 400 there.
+        # No temperature: these reasoning models reject anything but the default.
         from langchain_openai import ChatOpenAI
-        return ChatOpenAI(model=MODEL_ID or "gpt-5.6-luna")
+        extra = {"reasoning": {"effort": OPENAI_REASONING_EFFORT}} if OPENAI_REASONING_EFFORT else {}
+        return ChatOpenAI(model=MODEL_ID or "gpt-5.6-luna", use_responses_api=True, **extra)
     raise ValueError(f"Unknown LLM_PROVIDER '{LLM_PROVIDER}'. "
                      "Use one of: bedrock, anthropic, openai")
 

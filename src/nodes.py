@@ -144,7 +144,25 @@ def _fatal_provider_error(e: Exception) -> bool:
             or any(marker in text for marker in (
                 "insufficient_quota", "credit_balance", "credit balance",
                 "invalid_api_key", "invalid x-api-key", "incorrect api key",
-                "accessdenied", "unrecognizedclient", "security token")))
+                "accessdenied", "unrecognizedclient", "security token",
+                "model_not_found", "does not exist", "not supported for")))
+
+
+def _message_text(message) -> str:
+    """The text of a chat reply, whatever shape the provider returned.
+
+    The OpenAI Responses API (and Anthropic, with thinking on) return content
+    as a list of blocks, e.g. [reasoning, text]. str() on that list produced a
+    Python repr, so the cover-letter split failed and a draft shipped with an
+    empty cover letter. .text concatenates only the text blocks."""
+    text = getattr(message, "text", None)
+    if isinstance(text, str):   # current langchain-core: a property
+        return str(text)
+    if callable(text):          # older langchain-core: a method
+        text = text()
+        if isinstance(text, str):
+            return text
+    return message.content if isinstance(message.content, str) else ""
 
 
 def _hard_filter(item: JobItem) -> str | None:
@@ -384,6 +402,7 @@ def score(state: PipelineState):
     profile = config.load_profile()
     log = []
     llm_calls = deferred = 0
+    last_error = None
     updated: list[JobItem] = []
     for item in sorted(state.jobs, key=_scoring_priority):
         if item.score is not None:  # already scored in a previous loop iteration
@@ -421,9 +440,17 @@ def score(state: PipelineState):
                                "retrying will not help this run. Postings stay queued "
                                f"for the next run. Provider said: {str(e)[:200]}")
                     break
+                error = f"{type(e).__name__}: {str(e)[:200]}"
+                if error == last_error:
+                    log.append("score: STOPPED. The same error came back twice in a row, "
+                               "which means configuration, not a bad posting. Postings stay "
+                               f"queued for the next run. Error: {error}")
+                    break
+                last_error = error
                 log.append(f"score: skipped {item.posting.company} — "
-                           f"{item.posting.title}: {type(e).__name__}: {str(e)[:120]}")
+                           f"{item.posting.title}: {error[:160]}")
                 continue
+            last_error = None
             _audit_grounding(item, profile)
         item.status = "evaluated"
         updated.append(item)
@@ -556,7 +583,7 @@ def tailor(state: PipelineState):
             log.append(f"tailor: skipped {item.posting.company} — "
                        f"{item.posting.title}: {type(e).__name__}: {str(e)[:120]}")
             continue
-        text = draft.content if isinstance(draft.content, str) else str(draft.content)
+        text = _message_text(draft)
         parts = re.split(r"^## COVER LETTER\s*$", text, flags=re.M)
         resume_md = parts[0].replace("## RESUME", "").strip()
         if _resume_too_lossy(resume_md):
