@@ -60,9 +60,16 @@ MAX_LLM_SCORES = int(os.getenv("MAX_LLM_SCORES_PER_RUN") or "25")
 
 
 def load_profile() -> str:
-    """Concatenate all profile markdown files as grounding context."""
+    """Concatenate your profile markdown files as grounding context.
+
+    The committed *.example.md templates are skipped. The setup step copies each
+    template to its real name, so both exist side by side; loading both would
+    feed the model [FILL] placeholders next to your real profile, and the
+    matched_skills audit would check claims against template text."""
     parts = []
     for f in sorted(PROFILE_DIR.glob("*.md")):
+        if f.name.endswith(".example.md"):
+            continue
         parts.append(f"<file name='{f.name}'>\n{f.read_text()}\n</file>")
     return "\n\n".join(parts)
 
@@ -73,6 +80,26 @@ def get_llm(temperature: float = 0.2):
         from langchain_aws import ChatBedrockConverse
         return ChatBedrockConverse(model=MODEL_ID or "us.anthropic.claude-sonnet-4-6-v1:0",
                                    temperature=temperature)
-    from langchain_anthropic import ChatAnthropic
-    return ChatAnthropic(model=MODEL_ID or "claude-sonnet-4-6", temperature=temperature,
-                         max_tokens=4096)
+    if LLM_PROVIDER == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+        return ChatAnthropic(model=MODEL_ID or "claude-sonnet-4-6", temperature=temperature,
+                             max_tokens=4096)
+    if LLM_PROVIDER == "openai":
+        # No temperature: GPT-5-family reasoning models reject anything but the
+        # default, and the pipeline's tuning (0.2 to 0.5) is not worth a 400.
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(model=MODEL_ID or "gpt-5.6-luna")
+    raise ValueError(f"Unknown LLM_PROVIDER '{LLM_PROVIDER}'. "
+                     "Use one of: bedrock, anthropic, openai")
+
+
+def get_structured_llm(schema, temperature: float = 0.2):
+    """A chat model bound to a pydantic schema.
+
+    OpenAI goes through function calling rather than its json_schema mode:
+    FitScore uses ge/le bounds, which strict JSON schema does not accept, and
+    function calling is the path every provider here handles the same way."""
+    llm = get_llm(temperature)
+    if LLM_PROVIDER == "openai":
+        return llm.with_structured_output(schema, method="function_calling")
+    return llm.with_structured_output(schema)

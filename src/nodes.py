@@ -231,7 +231,7 @@ def plan_search(state: PipelineState):
     if state.plan is not None:  # reformulate already set a new plan
         return {"log": [f"plan: reusing '{state.plan.query}'"]}
     try:
-        llm = config.get_llm().with_structured_output(SearchPlan)
+        llm = config.get_structured_llm(SearchPlan)
         plan = llm.invoke([
             SystemMessage(content=(
                 "Choose ONE job-search query for this candidate for US aggregator job "
@@ -267,7 +267,7 @@ def discover(state: PipelineState):
 
 
 def score(state: PipelineState):
-    llm = config.get_llm().with_structured_output(FitScore)
+    llm = config.get_structured_llm(FitScore)
     profile = config.load_profile()
     log = []
     llm_calls = deferred = 0
@@ -349,7 +349,7 @@ def reformulate(state: PipelineState):
     """Broaden the query and loop back to discover."""
     old = state.plan or FALLBACK_PLAN
     try:
-        llm = config.get_llm(temperature=0.5).with_structured_output(SearchPlan)
+        llm = config.get_structured_llm(SearchPlan, temperature=0.5)
         plan = llm.invoke([
             SystemMessage(content=(
                 "The previous job-search query returned too few strong matches. "

@@ -5,3 +5,4 @@ langchain-core
 langchain-aws
 langchain-anthropic
 pydantic>=2
+langchain-openai

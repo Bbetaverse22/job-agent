@@ -108,6 +108,16 @@ python main.py discover --keywords ai,llm,agent --all
 Rows land at `status='discovered'`, which the dedupe deliberately does not treat as
 seen, so a later full `run` re-queues them for scoring.
 
+## Model providers
+
+Set `LLM_PROVIDER` to `openai`, `anthropic`, or `bedrock`, and override the model
+with `MODEL_ID`. An unrecognized provider fails at startup rather than silently
+falling back to another one.
+
+A full run scores up to `MAX_LLM_SCORES_PER_RUN` postings and tailors the few that
+pass, so cost is small but not zero. On a cheap tier such as `gpt-5.6-luna` a run
+costs cents. Lower `MAX_LLM_SCORES_PER_RUN` while you are testing.
+
 ## Observability
 
 Set `LANGSMITH_TRACING=true` with an API key and every node, model call, and loop
