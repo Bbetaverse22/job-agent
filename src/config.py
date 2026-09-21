@@ -55,6 +55,11 @@ CASCADE_LIMIT = int(os.getenv("CASCADE_LIMIT") or "25")
 HOME_METRO = os.getenv("HOME_METRO", "").strip().lower()
 RESUME_MUST_KEEP = tuple(
     m.strip() for m in os.getenv("RESUME_MUST_KEEP", "").split(",") if m.strip())
+# Title terms you never want to see, whole-word and case-insensitive, e.g.
+# "staff,principal,director,machine learning engineer". Personal taste, so it
+# lives here rather than in the built-in non-engineering list.
+EXCLUDE_TITLE_TERMS = tuple(
+    t.strip().lower() for t in os.getenv("EXCLUDE_TITLE_TERMS", "").split(",") if t.strip())
 # Cost guard: at most this many LLM scoring calls per run; overflow is deferred.
 MAX_LLM_SCORES = int(os.getenv("MAX_LLM_SCORES_PER_RUN") or "25")
 

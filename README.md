@@ -27,8 +27,12 @@ tracker, with job-radar winning ties. There is no LinkedIn scraping; their terms
 prohibit automation.
 
 **score** runs a deterministic filter first, so no posting earns a paid model call
-until it has passed remote/location rules, a non-engineering title check, and the
-salary rule. What survives goes to a structured-output rubric. `matched_skills` is
+until it has passed remote/location rules (including rejecting postings that are
+remote for another country), title checks, and the salary rule. The title check is
+two lists: engineer-titled roles that are really presales, support, or advocacy
+are always dropped, while non-engineering families such as design or marketing
+are only dropped when the title names no engineering work at all, so "Software
+Engineer, AI Enablement" is never mistaken for Sales Enablement. What survives goes to a structured-output rubric. `matched_skills` is
 then audited in code: any skill the model claimed that does not literally appear in
 both your profile and the job text is dropped, and the drop is recorded in the
 rationale. Scoring is capped at `MAX_LLM_SCORES_PER_RUN`; the overflow is deferred
@@ -128,7 +132,12 @@ iteration is traced. No code changes.
 Everything personal lives in `.env` and `profile/`, never in source. `HOME_METRO` is
 the one commutable city a non-remote posting may still pass on, blank for fully
 remote only. `RESUME_MUST_KEEP` is the list of landmarks that must survive tailoring.
-See `.env.example` for the rest.
+`EXCLUDE_TITLE_TERMS` drops titles containing any of your terms, for roles that are
+engineering but not for you (a seniority level, a specialty). See `.env.example` for
+the rest.
+
+The watchlist keyword filter matches whole words only, with an optional "s" or
+"ic", so "ai" does not match "maintain" and "agent" still matches "agentic".
 
 ## Privacy
 

@@ -148,10 +148,20 @@ def _hard_filter(item: JobItem) -> str | None:
                               desc[:3000]))
     if not remote_ok:
         return f"not remote{' / not ' + metro.title() if metro else ''}"
+    location = item.posting.location.lower()
+    if (not at_home_metro and NON_US_LOCATION.search(location)
+            and not US_LOCATION.search(location)):
+        return "remote outside the US"
     if re.search(r"\b(hybrid|on-?site|in.office)\b", loc) and not at_home_metro:
         return f"hybrid/onsite{' outside ' + metro.title() if metro else ''}"
-    if NON_ENGINEERING_TITLE.search(item.posting.title.lower()):
+    title = item.posting.title.lower()
+    if NON_SOFTWARE_ENGINEER_TITLE.search(title):
+        return "presales / support / advocacy role"
+    if not ENGINEERING_NOUN.search(title) and NON_ENGINEERING_TITLE.search(title):
         return "non-engineering role"
+    excluded = _excluded_title_term(title)
+    if excluded:
+        return f"excluded title term '{excluded}'"
     if config.SALARY_FLOOR:
         stated_max = parse_salary_max(item.posting.salary_text)
         if stated_max is not None and stated_max < config.SALARY_FLOOR:
@@ -161,16 +171,62 @@ def _hard_filter(item: JobItem) -> str | None:
     return None
 
 
-# Job families the candidate is not applying for. Matched against the TITLE only —
-# a description mentioning "sales" is fine, a title of "Account Executive" is not.
-# Deliberately conservative: anything ambiguous is left for the scorer to judge.
+# Title filtering is two lists, because one list cannot tell "Sales Enablement"
+# from "Software Engineer, AI Enablement". Both are matched against the TITLE only:
+# a description mentioning sales is fine, a title of "Account Executive" is not.
+# Anything ambiguous is left for the scorer, which is capped and prioritized.
+
+# A title naming engineering work. When present, NON_ENGINEERING_TITLE is not
+# consulted at all, so "AI Enablement Engineer" and "Growth Marketing Engineer"
+# reach the scorer instead of being dropped on a stray word.
+ENGINEERING_NOUN = re.compile(
+    r"\b(engineer\w*|developer|software|programmer|architect|sre|swe"
+    r"|technical staff)\b")
+
+# Job families that are never software engineering. Only applied to titles with
+# no engineering noun.
 NON_ENGINEERING_TITLE = re.compile(
-    r"\b(account executive|customer success|business development|sales (rep|manager|"
-    r"specialist|director|lead)|sales development|enablement|marketing|recruit\w*|"
-    r"talent acquisition|executive assistant|accounts? payable|accountant|controller|"
-    r"fp&a|payroll|procurement|paralegal|counsel|hris|people operations|"
-    r"office manager|community manager|content (writer|strategist)|copywriter|"
-    r"social media|public relations|patient care|nurse|teacher)\b")
+    r"\b(account (executive|director|manager)|customer success|business development"
+    r"|sales|demand gen\w*|marketing|brand|designer|ux researcher|recruit\w*|talent"
+    r"|people (operations|partner)|hris?|payroll|accountant|controller|fp&a|finance"
+    r"|legal|counsel|paralegal|procurement|audit|compensation|office manager"
+    r"|executive assistant|community manager|content|copywriter|social media"
+    r"|public relations|communications|events|(product|program|project) manager"
+    r"|analyst|partner(ship)? (manager|development)|general application|intern(ship)?"
+    r"|patient care|nurse|teacher)\b")
+
+# Titles that say "engineer" but are presales, support, or advocacy, not building
+# software. Always applied.
+NON_SOFTWARE_ENGINEER_TITLE = re.compile(
+    r"\b(solutions? (engineer|architect)|sales engineer|pre-?sales|customer engineer"
+    r"|support engineer|customer reliability|field engineer|implementation engineer"
+    r"|professional services|developer (relations|success|advoca\w*)|devrel)\b")
+
+# Location strings that name a non-US country or region. A "remote" posting whose
+# location names one of these and no US marker is remote for somewhere else.
+NON_US_LOCATION = re.compile(
+    r"\b(canada|toronto|montreal|vancouver|united kingdom|uk|england|london|ireland"
+    r"|dublin|germany|berlin|munich|france|paris|netherlands|amsterdam|poland"
+    r"|warsaw|spain|madrid|barcelona|portugal|lisbon|italy|sweden|stockholm|denmark"
+    r"|norway|finland|switzerland|zurich|austria|belgium|czech\w*|romania|ukraine"
+    r"|israel|tel aviv|india|bangalore|bengaluru|hyderabad|pune|singapore|japan"
+    r"|tokyo|korea|china|australia|sydney|melbourne|new zealand|brazil|mexico"
+    r"|argentina|colombia|latam|emea|apac|europe|eu)\b")
+US_LOCATION = re.compile(
+    r"\b(us|usa|u\.s\.?|united states|america|americas|amer|north america|anywhere)\b")
+
+
+def _excluded_title_term(title: str) -> str | None:
+    """The first EXCLUDE_TITLE_TERMS entry found in the title, or None.
+
+    "Member of Technical Staff" is a job title at several labs, not a seniority
+    level, so that phrase is removed before matching; otherwise excluding "staff"
+    would silently drop every MTS role."""
+    t = re.sub(r"\bmember of (the )?technical staff\b", "", title.lower())
+    for term in config.EXCLUDE_TITLE_TERMS:
+        if re.search(rf"\b{re.escape(term)}\b", t):
+            return term
+    return None
 
 
 BASE_RESUME_FILE = config.PROFILE_DIR / "00-base-resume.md"

@@ -8,6 +8,7 @@ Two layers, both feeding the discover node:
 No LinkedIn scraping — ToS prohibits automation.
 """
 import json
+import re
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -59,8 +60,23 @@ def ashby(slug: str):
 FETCHERS = {"greenhouse": greenhouse, "lever": lever, "ashby": ashby}
 
 
+def keyword_pattern(keywords: list[str]):
+    """Whole-word matcher for the watchlist filter, or None for no filter.
+
+    Plain substring matching made the filter a no-op: "ai" is inside maintain,
+    domain, detail, and available, so every posting on every board passed. Each
+    keyword now has to stand as its own word, with an optional "s" or "ic" so
+    "agent" still catches "agents" and "agentic" and "llm" catches "llms"."""
+    kws = [k.strip().lower() for k in keywords if k.strip()]
+    if not kws:
+        return None
+    alternatives = "|".join(re.escape(k) for k in kws)
+    return re.compile(rf"\b({alternatives})(s|ic)?\b")
+
+
 def fetch_watchlist(companies_file: Path, keywords: list[str]) -> list[JobPosting]:
-    out, kws = [], [k.lower() for k in keywords]
+    out = []
+    pattern = keyword_pattern(keywords)
     if not companies_file.exists():
         return out
     for line in companies_file.read_text().splitlines():
@@ -74,7 +90,7 @@ def fetch_watchlist(companies_file: Path, keywords: list[str]) -> list[JobPostin
         try:
             for posting in fetch(slug):
                 text = f"{posting.title} {posting.description[:2000]}".lower()
-                if not kws or any(k in text for k in kws):
+                if pattern is None or pattern.search(text):
                     out.append(posting)
         except Exception as e:  # noqa: BLE001 — one bad board shouldn't kill the run
             print(f"[discover] watchlist error {ats}:{slug}: {e}")
